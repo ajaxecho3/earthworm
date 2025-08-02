@@ -12,7 +12,24 @@ import random
 from urllib.parse import urlencode, quote
 from .base import RedditAdapterProtocol
 from .exceptions import AuthenticationError, APIError, RateLimitError
-from ...utils.agents import get_agent
+
+# Try to import user agents, fallback if not available
+try:
+    import sys
+    import os
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+    from utils.agents import USER_AGENTS
+    def get_agent():
+        return random.choice(USER_AGENTS)
+except ImportError:
+    # Fallback user agents if import fails
+    def get_agent():
+        agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        ]
+        return random.choice(agents)
 
 logger = logging.getLogger(__name__)
 
