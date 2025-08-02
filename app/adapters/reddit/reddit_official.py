@@ -6,7 +6,8 @@ import os
 import praw
 import time
 import random
-from typing import Dict, Any, Optional, List
+from datetime import datetime, timedelta
+from typing import Dict, Any, Optional, List, Union
 import logging
 from functools import wraps
 from .base import RedditAdapterProtocol
@@ -686,3 +687,326 @@ class RedditOfficial(RedditAdapterProtocol):
             reading_time = random.uniform(2.0, 8.0)
             logger.debug(f"Simulating human reading time: {reading_time:.1f}s")
             time.sleep(reading_time)
+    
+    # ===============================
+    # ADVANCED RESEARCH METHODS
+    # ===============================
+    
+    @handle_rate_limit(max_retries=3, base_delay=1.0)
+    def search_posts_by_timeframe(self, query: str, subreddit: Optional[str] = None,
+                                 start_date: Optional[datetime] = None, 
+                                 end_date: Optional[datetime] = None,
+                                 limit: int = 100) -> Optional[Dict[str, Any]]:
+        """Search for posts within a specific timeframe for temporal analysis."""
+        if not self.reddit:
+            logger.warning("Not authenticated. Call authenticate() first.")
+            return None
+        
+        self._enforce_rate_limit()
+        
+        try:
+            # Default to last 30 days if no dates provided
+            if not end_date:
+                end_date = datetime.now()
+            if not start_date:
+                start_date = end_date - timedelta(days=30)
+            
+            # Convert to Unix timestamps
+            start_timestamp = start_date.timestamp()
+            end_timestamp = end_date.timestamp()
+            
+            # Search for posts
+            if subreddit:
+                sub = self.reddit.subreddit(subreddit)
+                search_results = sub.search(query, sort="new", limit=limit)
+            else:
+                search_results = self.reddit.subreddit("all").search(query, sort="new", limit=limit)
+            
+            result = []
+            for post in search_results:
+                try:
+                    # Filter by timestamp
+                    if start_timestamp <= post.created_utc <= end_timestamp:
+                        post_data = {
+                            'id': post.id,
+                            'title': post.title,
+                            'author': str(post.author) if post.author else '[deleted]',
+                            'score': post.score,
+                            'upvote_ratio': getattr(post, 'upvote_ratio', 0),
+                            'url': post.url,
+                            'created_utc': post.created_utc,
+                            'created_date': datetime.fromtimestamp(post.created_utc).isoformat(),
+                            'num_comments': post.num_comments,
+                            'selftext': getattr(post, 'selftext', ''),
+                            'subreddit': post.subreddit.display_name,
+                            'permalink': f"https://reddit.com{post.permalink}",
+                            'is_self': post.is_self,
+                            'over_18': post.over_18,
+                            'domain': getattr(post, 'domain', ''),
+                        }
+                        result.append(post_data)
+                except Exception as post_error:
+                    logger.warning(f"Error processing temporal search result: {post_error}")
+                    continue
+            
+            logger.info(f"Found {len(result)} posts between {start_date.date()} and {end_date.date()}")
+            
+            return {
+                'data': {
+                    'children': [{'data': post} for post in result],
+                    'timeframe': {
+                        'start': start_date.isoformat(),
+                        'end': end_date.isoformat(),
+                        'total_days': (end_date - start_date).days
+                    },
+                    'query': query,
+                    'subreddit': subreddit
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to search posts by timeframe: {e}")
+            raise APIError(f"Failed to search by timeframe: {e}")
+    
+    @handle_rate_limit(max_retries=3, base_delay=1.0)
+    def collect_from_multiple_subreddits(self, subreddits: List[str], 
+                                        sort: str = "hot", limit_per_sub: int = 25) -> Dict[str, Any]:
+        """Collect posts from multiple subreddits for comparative analysis."""
+        if not self.reddit:
+            logger.warning("Not authenticated. Call authenticate() first.")
+            return {}
+        
+        all_results = {}
+        total_posts = 0
+        
+        logger.info(f"Collecting from {len(subreddits)} subreddits: {subreddits}")
+        
+        for i, subreddit in enumerate(subreddits):
+            try:
+                logger.info(f"Collecting from r/{subreddit} ({i+1}/{len(subreddits)})")
+                
+                # Get posts from this subreddit
+                posts_data = self.get_subreddit_posts(subreddit, sort=sort, limit=limit_per_sub)
+                
+                if posts_data and posts_data.get('data', {}).get('children'):
+                    posts = posts_data['data']['children']
+                    all_results[subreddit] = {
+                        'posts': posts,
+                        'count': len(posts),
+                        'collected_at': datetime.now().isoformat()
+                    }
+                    total_posts += len(posts)
+                    logger.info(f"  ✅ Collected {len(posts)} posts from r/{subreddit}")
+                else:
+                    all_results[subreddit] = {'posts': [], 'count': 0, 'error': 'No posts found'}
+                    logger.warning(f"  ⚠️ No posts found in r/{subreddit}")
+                
+                # Human-like delay between subreddits
+                if i < len(subreddits) - 1:  # Don't wait after last subreddit
+                    self.simulate_human_behavior()
+                    
+            except Exception as e:
+                logger.error(f"Error collecting from r/{subreddit}: {e}")
+                all_results[subreddit] = {'posts': [], 'count': 0, 'error': str(e)}
+                continue
+        
+        logger.info(f"Multi-subreddit collection complete: {total_posts} total posts from {len(subreddits)} subreddits")
+        
+        return {
+            'results': all_results,
+            'summary': {
+                'total_subreddits': len(subreddits),
+                'successful_collections': len([r for r in all_results.values() if r['count'] > 0]),
+                'total_posts': total_posts,
+                'collection_date': datetime.now().isoformat()
+            }
+        }
+    
+    @handle_rate_limit(max_retries=3, base_delay=1.0)
+    def get_comment_thread(self, comment_id: str, max_depth: int = 5) -> Optional[Dict[str, Any]]:
+        """Get a complete comment thread for conversation analysis."""
+        if not self.reddit:
+            logger.warning("Not authenticated. Call authenticate() first.")
+            return None
+        
+        self._enforce_rate_limit()
+        
+        try:
+            comment = self.reddit.comment(id=comment_id)
+            comment.refresh()  # Load all replies
+            
+            def extract_comment_tree(comment_obj, current_depth=0):
+                """Recursively extract comment tree."""
+                if current_depth > max_depth:
+                    return None
+                
+                try:
+                    if not hasattr(comment_obj, 'body') or comment_obj.body in ['[deleted]', '[removed]']:
+                        return None
+                    
+                    comment_data = {
+                        'id': comment_obj.id,
+                        'author': str(comment_obj.author) if comment_obj.author else '[deleted]',
+                        'body': comment_obj.body,
+                        'score': comment_obj.score,
+                        'created_utc': comment_obj.created_utc,
+                        'created_date': datetime.fromtimestamp(comment_obj.created_utc).isoformat(),
+                        'depth': current_depth,
+                        'parent_id': comment_obj.parent_id,
+                        'permalink': f"https://reddit.com{comment_obj.permalink}",
+                        'is_submitter': getattr(comment_obj, 'is_submitter', False),
+                        'distinguished': getattr(comment_obj, 'distinguished', None),
+                        'gilded': getattr(comment_obj, 'gilded', 0),
+                        'controversiality': getattr(comment_obj, 'controversiality', 0),
+                        'replies': []
+                    }
+                    
+                    # Get replies recursively
+                    if hasattr(comment_obj, 'replies') and comment_obj.replies:
+                        for reply in comment_obj.replies:
+                            if hasattr(reply, 'body'):  # Skip MoreComments objects
+                                reply_data = extract_comment_tree(reply, current_depth + 1)
+                                if reply_data:
+                                    comment_data['replies'].append(reply_data)
+                    
+                    return comment_data
+                    
+                except Exception as e:
+                    logger.warning(f"Error processing comment in thread: {e}")
+                    return None
+            
+            thread_data = extract_comment_tree(comment)
+            
+            if thread_data:
+                logger.info(f"Successfully extracted comment thread starting from {comment_id}")
+                return {
+                    'thread_root': thread_data,
+                    'max_depth': max_depth,
+                    'extracted_at': datetime.now().isoformat()
+                }
+            else:
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to get comment thread for {comment_id}: {e}")
+            raise APIError(f"Failed to get comment thread: {e}")
+    
+    @handle_rate_limit(max_retries=3, base_delay=1.0)
+    def get_trending_topics(self, subreddit: str = "all", time_filter: str = "day") -> Optional[Dict[str, Any]]:
+        """Get trending topics and popular keywords for trend analysis."""
+        if not self.reddit:
+            logger.warning("Not authenticated. Call authenticate() first.")
+            return None
+        
+        self._enforce_rate_limit()
+        
+        try:
+            sub = self.reddit.subreddit(subreddit)
+            
+            # Get top posts from the specified time period
+            if time_filter == "hour":
+                posts = sub.top(time_filter="hour", limit=50)
+            elif time_filter == "day":
+                posts = sub.top(time_filter="day", limit=50)
+            elif time_filter == "week":
+                posts = sub.top(time_filter="week", limit=100)
+            else:
+                posts = sub.hot(limit=50)
+            
+            trending_data = {
+                'posts': [],
+                'keywords': {},
+                'subreddits': {},
+                'authors': {},
+                'domains': {}
+            }
+            
+            for post in posts:
+                try:
+                    post_data = {
+                        'id': post.id,
+                        'title': post.title,
+                        'score': post.score,
+                        'num_comments': post.num_comments,
+                        'created_utc': post.created_utc,
+                        'subreddit': post.subreddit.display_name,
+                        'author': str(post.author) if post.author else '[deleted]',
+                        'url': post.url,
+                        'domain': getattr(post, 'domain', ''),
+                        'upvote_ratio': getattr(post, 'upvote_ratio', 0)
+                    }
+                    trending_data['posts'].append(post_data)
+                    
+                    # Count trending elements
+                    subreddit_name = post.subreddit.display_name
+                    trending_data['subreddits'][subreddit_name] = trending_data['subreddits'].get(subreddit_name, 0) + 1
+                    
+                    author_name = str(post.author) if post.author else '[deleted]'
+                    if author_name != '[deleted]':
+                        trending_data['authors'][author_name] = trending_data['authors'].get(author_name, 0) + 1
+                    
+                    domain = getattr(post, 'domain', '')
+                    if domain:
+                        trending_data['domains'][domain] = trending_data['domains'].get(domain, 0) + 1
+                    
+                    # Simple keyword extraction from titles
+                    title_words = post.title.lower().split()
+                    for word in title_words:
+                        # Filter out common words and short words
+                        if len(word) > 3 and word not in ['this', 'that', 'with', 'from', 'they', 'have', 'been', 'were', 'said', 'what', 'when', 'where', 'will', 'there', 'their']:
+                            trending_data['keywords'][word] = trending_data['keywords'].get(word, 0) + 1
+                    
+                except Exception as post_error:
+                    logger.warning(f"Error processing trending post: {post_error}")
+                    continue
+            
+            # Sort trending data by frequency
+            trending_data['top_keywords'] = dict(sorted(trending_data['keywords'].items(), key=lambda x: x[1], reverse=True)[:20])
+            trending_data['top_subreddits'] = dict(sorted(trending_data['subreddits'].items(), key=lambda x: x[1], reverse=True)[:10])
+            trending_data['top_authors'] = dict(sorted(trending_data['authors'].items(), key=lambda x: x[1], reverse=True)[:10])
+            trending_data['top_domains'] = dict(sorted(trending_data['domains'].items(), key=lambda x: x[1], reverse=True)[:10])
+            
+            logger.info(f"Analyzed {len(trending_data['posts'])} trending posts from r/{subreddit}")
+            
+            return {
+                'data': trending_data,
+                'analysis_period': time_filter,
+                'subreddit': subreddit,
+                'analyzed_at': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get trending topics: {e}")
+            raise APIError(f"Failed to get trending topics: {e}")
+    
+    def get_research_metadata(self) -> Dict[str, Any]:
+        """Get comprehensive metadata about the current session for research documentation."""
+        return {
+            'session_info': {
+                'reddit_adapter': 'Official PRAW',
+                'authentication_mode': 'authenticated' if (self.prefer_authenticated and self.username) else 'read-only',
+                'anti_bot_protection': self.get_anti_bot_status(),
+                'rate_limiting': self.get_rate_limit_status(),
+                'session_start': datetime.now().isoformat(),
+                'user_agent': self.user_agent
+            },
+            'capabilities': {
+                'subreddit_collection': True,
+                'search_functionality': True,
+                'comment_extraction': True,
+                'user_analysis': True,
+                'temporal_filtering': True,
+                'multi_subreddit_collection': True,
+                'comment_thread_analysis': True,
+                'trending_analysis': True,
+                'export_formats': ['json', 'csv', 'excel'],
+                'statistical_analysis': True
+            },
+            'limitations': {
+                'rate_limits': 'Reddit API standard limits apply',
+                'historical_data': 'Limited to Reddit API availability',
+                'deleted_content': 'Cannot retrieve deleted/removed content',
+                'private_subreddits': 'Requires appropriate permissions',
+                'real_time': 'Not real-time, subject to API delays'
+            }
+        }
