@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🌍 Earthworm Dashboard</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        color: #333;
+        line-height: 1.6;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      .header {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 25px;
+        margin-bottom: 20px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .header h1 {
+        font-size: 2.5em;
+        font-weight: 700;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 10px;
+      }
+
+      .status-bar {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+
+      .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-radius: 25px;
+        font-weight: 500;
+        font-size: 14px;
+      }
+
+      .status-connected {
+        background: rgba(76, 175, 80, 0.1);
+        color: #4caf50;
+        border: 1px solid rgba(76, 175, 80, 0.3);
+      }
+
+      .status-disconnected {
+        background: rgba(244, 67, 54, 0.1);
+        color: #f44336;
+        border: 1px solid rgba(244, 67, 54, 0.3);
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+      }
+
+      .status-connected .status-dot {
+        background: #4caf50;
+      }
+
+      .status-disconnected .status-dot {
+        background: #f44336;
+      }
+
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      .job-counter {
+        background: rgba(103, 126, 234, 0.1);
+        color: #667eea;
+        border: 1px solid rgba(103, 126, 234, 0.3);
+      }
+
+      .main-content {
+        display: grid;
+        grid-template-columns: 400px 1fr;
+        gap: 20px;
+        height: calc(100vh - 160px);
+      }
+
+      .sidebar {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 25px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        overflow-y: auto;
+      }
+
+      .results-panel {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 25px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        overflow-y: auto;
+      }
+
+      .section-title {
+        font-size: 1.3em;
+        font-weight: 600;
+        margin-bottom: 20px;
+        color: #333;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .form-section {
+        margin-bottom: 30px;
+        padding: 20px;
+        background: rgba(248, 249, 250, 0.6);
+        border-radius: 15px;
+        border: 1px solid rgba(0, 0, 0, 0.05);
+      }
+
+      .form-group {
+        margin-bottom: 15px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 6px;
+        color: #555;
+        font-weight: 500;
+        font-size: 0.9em;
+      }
+
+      input,
+      select {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid #e1e5e9;
+        border-radius: 12px;
+        font-size: 14px;
+        transition: all 0.3s ease;
+        background: white;
+      }
+
+      input:focus,
+      select:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(103, 126, 234, 0.1);
+      }
+
+      button {
+        width: 100%;
+        padding: 12px 16px;
+        border: none;
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+      }
+
+      button:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(103, 126, 234, 0.3);
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .btn-secondary {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      }
+
+      .btn-small {
+        width: auto;
+        padding: 8px 16px;
+        font-size: 12px;
+        margin: 5px 5px 0 0;
+      }
+
+      .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 15px;
+      }
+
+      .checkbox-group input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+      }
+
+      .init-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 20px;
+        padding: 40px;
+        text-align: center;
+        margin-bottom: 20px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      }
+
+      .init-section h2 {
+        font-size: 2em;
+        margin-bottom: 15px;
+      }
+
+      .init-form {
+        max-width: 400px;
+        margin: 0 auto;
+      }
+
+      .init-form select,
+      .init-form button {
+        margin-bottom: 15px;
+        background: rgba(255, 255, 255, 0.9);
+        color: #333;
+      }
+
+      .init-form button {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+      }
+
+      .init-form button:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+
+      .job-list {
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      .job-item {
+        background: rgba(248, 249, 250, 0.8);
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 12px;
+        border-left: 4px solid #667eea;
+        transition: all 0.3s ease;
+      }
+
+      .job-item:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      }
+
+      .job-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .job-id {
+        font-weight: 600;
+        color: #333;
+        font-size: 0.9em;
+      }
+
+      .job-status {
+        padding: 4px 8px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .status-running {
+        background: #fff3cd;
+        color: #856404;
+      }
+
+      .status-completed {
+        background: #d4edda;
+        color: #155724;
+      }
+
+      .status-failed {
+        background: #f8d7da;
+        color: #721c24;
+      }
+
+      .job-meta {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 10px;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 15px;
+        margin-bottom: 25px;
+      }
+
+      .stat-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(103, 126, 234, 0.3);
+      }
+
+      .stat-number {
+        font-size: 2.2em;
+        font-weight: bold;
+        margin-bottom: 5px;
+      }
+
+      .stat-label {
+        font-size: 0.9em;
+        opacity: 0.9;
+      }
+
+      .data-container {
+        max-height: 500px;
+        overflow-y: auto;
+      }
+
+      .data-item {
+        background: rgba(248, 249, 250, 0.8);
+        border-radius: 12px;
+        padding: 18px;
+        margin-bottom: 15px;
+        border-left: 4px solid #4caf50;
+        transition: all 0.3s ease;
+      }
+
+      .data-item:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      }
+
+      .data-title {
+        font-weight: 600;
+        margin-bottom: 10px;
+        color: #333;
+        line-height: 1.4;
+      }
+
+      .data-meta {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 10px;
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+      }
+
+      .data-content {
+        color: #555;
+        line-height: 1.5;
+        font-size: 14px;
+      }
+
+      .export-section {
+        margin-top: 25px;
+        padding-top: 20px;
+        border-top: 2px solid rgba(0, 0, 0, 0.05);
+        text-align: center;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #666;
+      }
+
+      .empty-state .icon {
+        font-size: 4em;
+        margin-bottom: 20px;
+        opacity: 0.5;
+      }
+
+      .empty-state h3 {
+        font-size: 1.3em;
+        margin-bottom: 10px;
+        color: #333;
+      }
+
+      .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 25px;
+        border-radius: 12px;
+        color: white;
+        font-weight: 500;
+        z-index: 1000;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        transition: all 0.3s ease;
+      }
+
+      .notification.success {
+        background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+      }
+
+      .notification.error {
+        background: linear-gradient(135deg, #f44336 0%, #e53935 100%);
+      }
+
+      .notification.info {
+        background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+      }
+
+      .divider {
+        margin: 25px 0;
+        height: 2px;
+        background: linear-gradient(
+          135deg,
+          rgba(103, 126, 234, 0.2) 0%,
+          rgba(118, 75, 162, 0.2) 100%
+        );
+        border: none;
+      }
+
+      @media (max-width: 768px) {
+        .main-content {
+          grid-template-columns: 1fr;
+          height: auto;
+        }
+
+        .stats-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .status-bar {
+          flex-direction: column;
+          gap: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div class="container">
+        <!-- Header -->
+        <div class="header">
+          <h1>🌍 Earthworm Dashboard</h1>
+          <div class="status-bar">
+            <div
+              :class="status.initialized ? 'status-connected' : 'status-disconnected'"
+              class="status-indicator"
+            >
+              <div class="status-dot"></div>
+              <span>
+                <span v-if="status.initialized"
+                  >Connected to </span><span v-text="status.current_platform"></span>
+                >
+                <span v-else>Not Connected</span>
+              </span>
+            </div>
+            <div
+              v-if="Object.keys(jobs).length > 0"
+              class="status-indicator job-counter"
+            >
+              <span>📊 </span><span v-text="Object.keys(jobs).length"></span><span> Active Jobs</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Platform Initialization -->
+        <div v-if="!status.initialized" class="init-section">
+          <h2>🚀 Initialize Platform</h2>
+          <p style="margin-bottom: 30px; opacity: 0.9">
+            Choose a platform to start collecting social media data
+          </p>
+          <div class="init-form">
+            <select v-model="selectedPlatform">
+              <option value="reddit">🔸 Reddit</option>
+              <option value="twitter">🔸 Twitter</option>
+            </select>
+            <div
+              class="checkbox-group"
+              style="justify-content: center; color: white"
+            >
+              <input type="checkbox" v-model="stealthMode" id="stealth" />
+              <label for="stealth" style="color: white">🥷 Stealth Mode</label>
+            </div>
+            <button @click="initializePlatform" :disabled="initializing">
+              <span v-if="initializing">⏳ Initializing...</span>
+              <span v-else>🚀 Initialize Platform</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div v-else class="main-content">
+          <!-- Sidebar -->
+          <div class="sidebar">
+            <!-- Search Form -->
+            <div class="form-section">
+              <h3 class="section-title">🔍 Search Data</h3>
+              <div class="form-group">
+                <label>Search Query</label>
+                <input
+                  v-model="searchForm.query"
+                  placeholder="Enter search terms..."
+                />
+              </div>
+              <div class="form-group">
+                <label>Subreddit (optional)</label>
+                <input
+                  v-model="searchForm.subreddit"
+                  placeholder="e.g., technology, science"
+                />
+              </div>
+              <div class="form-group">
+                <label>Results Limit</label>
+                <select v-model="searchForm.limit">
+                  <option value="10">10 items</option>
+                  <option value="25">25 items</option>
+                  <option value="50">50 items</option>
+                  <option value="100">100 items</option>
+                </select>
+              </div>
+              <div class="checkbox-group">
+                <input
+                  type="checkbox"
+                  v-model="searchForm.include_comments"
+                  id="search-comments"
+                />
+                <label for="search-comments">Include Comments</label>
+              </div>
+              <button @click="startSearch" :disabled="!searchForm.query">
+                🔍 Start Search
+              </button>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Collection Form -->
+            <div class="form-section">
+              <h3 class="section-title">📂 Collect Subreddit</h3>
+              <div class="form-group">
+                <label>Subreddit Name</label>
+                <input
+                  v-model="collectionForm.subreddit"
+                  placeholder="e.g., MachineLearning, Python"
+                />
+              </div>
+              <div class="form-group">
+                <label>Sort By</label>
+                <select v-model="collectionForm.sort">
+                  <option value="hot">🔥 Hot</option>
+                  <option value="new">🆕 New</option>
+                  <option value="top">⭐ Top</option>
+                  <option value="rising">📈 Rising</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Results Limit</label>
+                <select v-model="collectionForm.limit">
+                  <option value="10">10 items</option>
+                  <option value="25">25 items</option>
+                  <option value="50">50 items</option>
+                  <option value="100">100 items</option>
+                </select>
+              </div>
+              <div class="checkbox-group">
+                <input
+                  type="checkbox"
+                  v-model="collectionForm.include_comments"
+                  id="collection-comments"
+                />
+                <label for="collection-comments">Include Comments</label>
+              </div>
+              <button
+                @click="startCollection"
+                :disabled="!collectionForm.subreddit"
+                class="btn-secondary"
+              >
+                📂 Start Collection
+              </button>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Active Jobs -->
+            <div>
+              <h3 class="section-title">⚡ Active Jobs</h3>
+              <div class="job-list">
+                <div
+                  v-if="Object.keys(jobs).length === 0"
+                  class="empty-state"
+                  style="padding: 30px 10px"
+                >
+                  <div style="font-size: 2em; margin-bottom: 10px">💼</div>
+                  <p>No active jobs</p>
+                </div>
+                <div v-for="(job, jobId) in jobs" :key="jobId" class="job-item">
+                  <div class="job-header">
+                    <span class="job-id" v-text="jobId"></span>
+                    <span :class="'status-' + job.status" class="job-status"
+                      ><span v-text="job.status"></span></span
+                    >
+                  </div>
+                  <div class="job-meta">
+                    <span></span>Type: </span><span v-text="job.job_type || 'Unknown'"></span>
+                  </div>
+                  <div v-if="job.status === 'completed'">
+                    <button @click="viewResults(jobId)" class="btn-small">
+                      👁️ View Results
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Results Panel -->
+          <div class="results-panel">
+            <h3 class="section-title">📊 Data Results</h3>
+
+            <div v-if="currentResults.posts || currentResults.comments">
+              <!-- Statistics -->
+              <div class="stats-grid">
+                <div class="stat-card">
+                  <div class="stat-number">
+                    <span v-if="currentResults.posts"
+                      ><span v-text="currentResults.posts.length"></span></span
+                    >
+                    <span v-else>0</span>
+                  </div>
+                  <div class="stat-label">Posts Collected</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">
+                    <span v-if="currentResults.comments"
+                      ><span v-text="currentResults.comments.length"></span></span
+                    >
+                    <span v-else>0</span>
+                  </div>
+                  <div class="stat-label">Comments Collected</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number" v-text="getTotalEngagement()"></div>
+                  <div class="stat-label">Total Engagement</div>
+                </div>
+              </div>
+
+              <!-- Data Display -->
+              <div class="data-container">
+                <!-- Posts -->
+                <div
+                  v-if="currentResults.posts && currentResults.posts.length > 0"
+                >
+                  <h4
+                    style="margin-bottom: 15px; color: #333; font-size: 1.2em"
+                  >
+                    📝 Posts
+                  </h4>
+                  <div
+                    v-for="(post, index) in currentResults.posts.slice(0, 10)"
+                    :key="'post-' + index"
+                    class="data-item"
+                  >
+                    <div class="data-title" v-text="getPostData(post).title || 'Untitled Post'"></div>
+                    <div class="data-meta">
+                      <span>👤 u/</span><span v-text="getPostData(post).author"></span>
+                      <span>⬆️ </span><span v-text="getPostData(post).score || 0"></span><span> points</span>
+                      <span
+                        >💬 </span><span v-text="getPostData(post).num_comments || 0"></span><span>
+                        comments</span
+                      >
+                      <span>🏷️ r/</span><span v-text="getPostData(post).subreddit"></span>
+                    </div>
+                    <div v-if="getPostData(post).selftext" class="data-content">
+                      <span v-text="getPostData(post).selftext ? getPostData(post).selftext.substring(0, 300) : ''"></span><span v-text="getPostData(post).selftext && getPostData(post).selftext.length > 300 ? '...' : ''"></span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Comments -->
+                <div
+                  v-if="currentResults.comments && currentResults.comments.length > 0"
+                  style="margin-top: 25px"
+                >
+                  <h4
+                    style="margin-bottom: 15px; color: #333; font-size: 1.2em"
+                  >
+                    💬 Comments
+                  </h4>
+                  <div
+                    v-for="(comment, index) in currentResults.comments.slice(0, 20)"
+                    :key="'comment-' + index"
+                    class="data-item"
+                    style="border-left-color: #ff9800"
+                  >
+                    <div class="data-title">
+                      👤 u/<span v-text="getCommentData(comment).author"></span>
+                    </div>
+                    <div class="data-meta">
+                      <span
+                        >⬆️ </span><span v-text="getCommentData(comment).score || 0"></span><span>
+                        points</span
+                      >
+                    </div>
+                    <div class="data-content">
+                      <span v-text="getCommentData(comment).body ? getCommentData(comment).body.substring(0, 400) : 'No content'"></span><span v-text="getCommentData(comment).body && getCommentData(comment).body.length > 400 ? '...' : ''"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Export Options -->
+              <div class="export-section">
+                <h4 style="margin-bottom: 15px; color: #333">💾 Export Data</h4>
+                <div
+                  style="
+                    display: flex;
+                    justify-content: center;
+                    gap: 10px;
+                    flex-wrap: wrap;
+                  "
+                >
+                  <button @click="exportData('json')" class="btn-small">
+                    📄 JSON
+                  </button>
+                  <button @click="exportData('csv')" class="btn-small">
+                    📊 CSV
+                  </button>
+                  <button @click="exportData('excel')" class="btn-small">
+                    📈 Excel
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="empty-state">
+              <div class="icon">📊</div>
+              <h3>No Data Collected Yet</h3>
+              <p>Start a search or collection to see results here</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notification -->
+      <div
+        v-if="notification.show"
+        :class="['notification', notification.type]"
+      >
+        <span v-text="notification.message"></span>
+      </div>
+    </div>
+
+    <script>
+      const { createApp } = Vue;
+
+      createApp({
+        data() {
+          return {
+            status: { initialized: false },
+            jobs: {},
+            currentResults: {},
+            currentJobId: null,
+            selectedPlatform: "reddit",
+            stealthMode: false,
+            initializing: false,
+            searchForm: {
+              query: "",
+              subreddit: "",
+              limit: "25",
+              include_comments: false,
+            },
+            collectionForm: {
+              subreddit: "",
+              sort: "hot",
+              limit: "25",
+              include_comments: false,
+            },
+            notification: {
+              show: false,
+              type: "info",
+              message: "",
+            },
+          };
+        },
+        mounted() {
+          console.log("🌍 Earthworm Dashboard mounted successfully!");
+          this.checkStatus();
+          this.startJobPolling();
+        },
+        methods: {
+          async checkStatus() {
+            try {
+              console.log("📡 Checking status...");
+              const response = await axios.get("/api/status");
+              this.status = response.data;
+              console.log("✅ Status:", this.status);
+            } catch (error) {
+              console.error("❌ Status check failed:", error);
+              this.showNotification("Status check failed", "error");
+            }
+          },
+
+          async initializePlatform() {
+            this.initializing = true;
+            try {
+              console.log(`🚀 Initializing ${this.selectedPlatform}...`);
+              const response = await axios.post("/api/initialize", {
+                platform: this.selectedPlatform,
+                stealth_mode: this.stealthMode,
+              });
+
+              if (response.data.success) {
+                this.showNotification(response.data.message, "success");
+                await this.checkStatus();
+              } else {
+                this.showNotification(response.data.message, "error");
+              }
+            } catch (error) {
+              console.error("❌ Initialization error:", error);
+              this.showNotification("Initialization failed", "error");
+            } finally {
+              this.initializing = false;
+            }
+          },
+
+          async startSearch() {
+            try {
+              console.log(`🔍 Starting search for: ${this.searchForm.query}`);
+              const response = await axios.post("/api/search", {
+                query: this.searchForm.query,
+                subreddit: this.searchForm.subreddit || null,
+                limit: parseInt(this.searchForm.limit),
+                include_comments: this.searchForm.include_comments,
+              });
+
+              if (response.data.success) {
+                this.showNotification("🔍 Search started!", "info");
+                this.jobs[response.data.job_id] = {
+                  status: "running",
+                  job_type: "search",
+                };
+              } else {
+                this.showNotification(response.data.message, "error");
+              }
+            } catch (error) {
+              console.error("❌ Search error:", error);
+              this.showNotification("Search failed to start", "error");
+            }
+          },
+
+          async startCollection() {
+            try {
+              console.log(
+                `📂 Starting collection for r/${this.collectionForm.subreddit}`
+              );
+              const response = await axios.post("/api/subreddit", {
+                subreddit: this.collectionForm.subreddit,
+                sort: this.collectionForm.sort,
+                limit: parseInt(this.collectionForm.limit),
+                include_comments: this.collectionForm.include_comments,
+              });
+
+              if (response.data.success) {
+                this.showNotification("📂 Collection started!", "info");
+                this.jobs[response.data.job_id] = {
+                  status: "running",
+                  job_type: "subreddit",
+                };
+              } else {
+                this.showNotification(response.data.message, "error");
+              }
+            } catch (error) {
+              console.error("❌ Collection error:", error);
+              this.showNotification("Collection failed to start", "error");
+            }
+          },
+
+          startJobPolling() {
+            setInterval(async () => {
+              for (const jobId in this.jobs) {
+                if (this.jobs[jobId].status === "running") {
+                  try {
+                    const response = await axios.get(`/api/jobs/${jobId}`);
+                    const jobData = response.data;
+
+                    // Check if job just completed
+                    if (
+                      this.jobs[jobId].status === "running" &&
+                      jobData.status === "completed"
+                    ) {
+                      if (jobData.result) {
+                        this.currentResults = jobData.result;
+                        this.currentJobId = jobId;
+                        this.showNotification(
+                          "✅ Collection completed!",
+                          "success"
+                        );
+                      }
+                    }
+
+                    this.jobs[jobId] = jobData;
+                  } catch (error) {
+                    console.error(`❌ Job check failed for ${jobId}:`, error);
+                  }
+                }
+              }
+            }, 2000);
+          },
+
+          viewResults(jobId) {
+            if (this.jobs[jobId]?.result) {
+              this.currentResults = this.jobs[jobId].result;
+              this.currentJobId = jobId;
+              this.showNotification("📊 Results loaded!", "info");
+            }
+          },
+
+          async exportData(format) {
+            if (!this.currentJobId) {
+              this.showNotification("No data to export", "error");
+              return;
+            }
+
+            try {
+              console.log(`💾 Exporting data as ${format}...`);
+              const response = await axios.get(
+                `/api/export/${this.currentJobId}?format=${format}`,
+                {
+                  responseType: "blob",
+                }
+              );
+
+              const url = window.URL.createObjectURL(new Blob([response.data]));
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = `earthworm_data_${this.currentJobId}.${
+                format === "excel" ? "xlsx" : format
+              }`;
+              link.click();
+              window.URL.revokeObjectURL(url);
+
+              this.showNotification(
+                `💾 Data exported as ${format.toUpperCase()}!`,
+                "success"
+              );
+            } catch (error) {
+              console.error("❌ Export error:", error);
+              this.showNotification("Export failed", "error");
+            }
+          },
+
+          showNotification(message, type = "info") {
+            this.notification = { show: true, type, message };
+            setTimeout(() => {
+              this.notification.show = false;
+            }, 5000);
+          },
+
+          getPostData(post) {
+            return post.data || post;
+          },
+
+          getCommentData(comment) {
+            return comment.data || comment;
+          },
+
+          getTotalEngagement() {
+            let total = 0;
+            if (this.currentResults.posts) {
+              total += this.currentResults.posts.reduce((sum, post) => {
+                const data = this.getPostData(post);
+                return sum + (data.score || 0) + (data.num_comments || 0);
+              }, 0);
+            }
+            if (this.currentResults.comments) {
+              total += this.currentResults.comments.reduce((sum, comment) => {
+                const data = this.getCommentData(comment);
+                return sum + (data.score || 0);
+              }, 0);
+            }
+            return total.toLocaleString();
+          },
+        },
+      }).mount("#app");
+    </script>
+  </body>
+</html>

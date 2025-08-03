@@ -18,6 +18,21 @@ from enum import Enum
 # Add current directory to Python path for relative imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Load environment variables from .env file
+def load_env_file():
+    """Load environment variables from .env file if it exists."""
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
+    if os.path.exists(env_path):
+        with open(env_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key.strip()] = value.strip()
+
+# Load environment variables early
+load_env_file()
+
 from adapters.reddit.reddit_official import RedditOfficial
 from adapters.reddit.factory import RedditAdapterFactory
 from adapters.reddit.config import RedditConfig
@@ -1272,6 +1287,8 @@ def main():
     # Mode selection
     parser.add_argument('--interactive', '-i', action='store_true',
                        help='Run in interactive menu mode (recommended for beginners)')
+    parser.add_argument('--web', '-w', action='store_true',
+                       help='Launch web UI interface (recommended for visual users)')
     parser.add_argument('--config', action='store_true',
                        help='Run configuration wizard')
     
@@ -1320,6 +1337,10 @@ def main():
     
     if args.config:
         run_configuration_wizard()
+        return
+    
+    if args.web:
+        launch_web_ui()
         return
     
     if args.advanced:
@@ -1378,12 +1399,50 @@ def main():
         # Fall back to advanced CLI parsing for power users
         parse_advanced_arguments(unknown_args, app, args)
 
+def launch_web_ui():
+    """Launch the web UI interface."""
+    print("🌍 Launching Earthworm Web UI...")
+    print("=" * 40)
+    
+    try:
+        import subprocess
+        import webbrowser
+        import time
+        
+        # Start the web server in background
+        web_process = subprocess.Popen([
+            sys.executable, "-m", "app.web_ui"
+        ], cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        
+        print("🚀 Starting web server...")
+        time.sleep(3)  # Give server time to start
+        
+        # Open browser
+        print("🌐 Opening browser at http://localhost:5000")
+        webbrowser.open("http://localhost:5000")
+        
+        print("✅ Web UI launched successfully!")
+        print("🔧 Press Ctrl+C in terminal to stop the server")
+        
+        # Wait for user to stop
+        try:
+            web_process.wait()
+        except KeyboardInterrupt:
+            print("\n👋 Shutting down web server...")
+            web_process.terminate()
+            web_process.wait()
+            
+    except Exception as e:
+        print(f"❌ Failed to launch web UI: {e}")
+        print("💡 Try running manually: uv run python app/web_ui.py")
+
 def show_getting_started():
     """Show user-friendly getting started guide."""
     print("🌍 Welcome to Earthworm - Social Media Data Collector")
     print("=" * 60)
-    print("\n� Getting Started:")
-    print("  --interactive     Launch interactive menu (recommended)")
+    print("\n🎯 Choose Your Interface:")
+    print("  --web             Launch web UI (visual, browser-based)")
+    print("  --interactive     Terminal menu (text-based)")
     print("  --config          Set up API credentials")
     print("  --demo            See what Earthworm can do")
     print("\n⚡ Quick Actions:")
@@ -1393,10 +1452,11 @@ def show_getting_started():
     print("  --list-platforms  Show available platforms")
     print("  --advanced        Show all command-line options")
     print("\n💡 Examples:")
-    print("  earthworm --interactive")
+    print("  earthworm --web              # Launch visual interface")
+    print("  earthworm --interactive      # Terminal menu")
     print('  earthworm --quick-search "machine learning"')
-    print("  earthworm --quick-subreddit datascience")
     print("  earthworm --demo --stealth")
+    print("\n🌟 Recommended: Start with --web for the best experience!")
 
 def run_configuration_wizard():
     """Interactive configuration wizard."""
